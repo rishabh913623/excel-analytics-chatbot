@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RL-Enhanced Excel Analytics Chatbot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .table-container { max-height: 45vh; overflow-y: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #e2e8f0; padding: 10px 12px; text-align: left; font-size: 0.875rem; }
+        th { background-color: #f8fafc; position: sticky; top: 0; z-index: 10; font-weight: 600; }
+        .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #09f; animation: spin 1s ease infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .ai-btn { transition: all 0.2s ease-in-out; }
+        .ai-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .prose { max-width: none; }
+        .api-key-section { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .chart-container { position: relative; height: 400px; width: 100%; }
+        .suggestion-pill { background: linear-gradient(45deg, #6366f1, #8b5cf6); color: white; padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: all 0.2s ease; display: inline-block; margin: 4px; font-size: 0.875rem; }
+        .suggestion-pill:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4); }
+        .analysis-card { background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-left: 4px solid #0ea5e9; }
+        /* Feedback section */
+        .feedback-section { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem; margin-top: 1rem; }
+        .feedback-section textarea { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.75rem; font-size: 0.9rem; resize: vertical; }
+        .feedback-section button { background-color: #4CAF50; color: white; padding: 0.5rem 1rem; border-radius: 8px; font-weight: 500; transition: background-color 0.2s; }
+        .feedback-section button:hover { background-color: #45a049; }
+        /* New: Buttons for explicit helpful/unhelpful feedback */
+        .feedback-quick-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+        .feedback-quick-buttons button {
+            background-color: #e2e8f0;
+            color: #4a5568;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s;
+            display: flex;
+            align-items: center;
+        }
+        .feedback-quick-buttons button.positive:hover { background-color: #d1fae5; color: #059669; }
+        .feedback-quick-buttons button.negative:hover { background-color: #fee2e2; color: #dc2626; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900">🚀 RL-Enhanced Excel Analytics Chatbot</h1>
+            <p class="text-lg text-gray-600 mt-2">Adaptive data analysis with natural language, smart suggestions, and automated visualizations</p>
+        </header>
+
+        <div id="api-key-section" class="api-key-section p-6 rounded-2xl shadow-lg border border-gray-200 mb-6">
+            <h2 class="text-xl font-bold mb-4">🔑 API Configuration</h2>
+            <p class="mb-4 opacity-90">To use AI features, please enter your Google Gemini API key:</p>
+            <div class="flex flex-col sm:flex-row gap-2">
+                <input type="password" id="api-key-input" class="flex-grow px-4 py-2 border border-white/20 rounded-lg bg-white/10 text-white placeholder-white/70 focus:ring-2 focus:ring-white/50 focus:border-white/50 transition" placeholder="Enter your Gemini API key">
+                <button id="save-api-key" class="bg-white/20 text-white font-semibold px-6 py-2 rounded-lg hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white/50 transition">
+                    Save Key
+                </button>
+            </div>
+            <p class="text-sm mt-2 opacity-75">Get your free API key at <a href="https://makersuite.google.com/app/apikey" target="_blank" class="underline hover:text-blue-200">Google AI Studio</a></p>
+            <div id="api-status" class="mt-2 text-sm hidden"></div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-200">
+            <div id="file-upload-section">
+                <label for="file-input" class="block text-lg font-semibold text-gray-700 mb-2">Upload Excel File</label>
+                <div class="flex items-center justify-center w-full">
+                    <label for="file-input" class="flex flex-col items-center justify-center w-full h-48 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                            <svg class="w-10 h-10 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                            <p class="mb-2 text-sm text-gray-500"><span class="font-semibold">Click to upload</span> or drag and drop</p>
+                            <p class="text-xs text-gray-500">XLSX, XLS, or CSV files</p>
+                        </div>
+                        <input id="file-input" type="file" class="hidden" accept=".xlsx, .xls, .csv" />
+                    </label>
+                </div>
+                   <p id="file-name" class="mt-4 text-center text-gray-600"></p>
+            </div>
+
+            <div id="chat-section" class="hidden mt-6">
+                <div class="mb-4">
+                    <label for="question-input" class="block text-lg font-semibold text-gray-700 mb-2">Ask anything about your data</label>
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <input type="text" id="question-input" class="flex-grow w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="e.g., 'Show top 10 products by sales in 2023' or 'Create bar chart of monthly revenue'">
+                        <button id="submit-button" class="bg-blue-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out flex items-center justify-center">
+                            <span id="button-text">Analyze</span>
+                            <div id="loading-spinner" class="spinner hidden ml-2" style="width: 20px; height: 20px; border-width: 2px;"></div>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="suggestions-section" class="mb-4">
+                    <p class="text-sm font-medium text-gray-700 mb-2">💡 Intelligent Suggestions:</p>
+                    <div id="suggestion-pills" class="flex flex-wrap">
+                        </div>
+                </div>
+                
+                <div class="flex flex-wrap gap-2 justify-center mt-4">
+                    <button id="summarize-button" class="ai-btn bg-purple-100 text-purple-800 font-semibold px-4 py-2 rounded-lg hover:bg-purple-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
+                        ✨ Smart Summary
+                    </button>
+                    <button id="insights-button" class="ai-btn bg-emerald-100 text-emerald-800 font-semibold px-4 py-2 rounded-lg hover:bg-emerald-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
+                        🔍 Auto Insights
+                    </button>
+                    <button id="generate-report-button" class="ai-btn bg-yellow-100 text-yellow-800 font-semibold px-4 py-2 rounded-lg hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500">
+                        📊 Generate Report
+                    </button>
+                       <button id="clear-button" class="ai-btn bg-red-100 text-red-800 font-semibold px-4 py-2 rounded-lg hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                        🔄 Reset
+                    </button>
+                </div>
+                
+                <div id="ai-feature-warning" class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm hidden">
+                    ⚠️ AI features require a valid Gemini API key. Please configure it above to use advanced analysis features.
+                </div>
+            </div>
+        </div>
+
+        <div id="output-container" class="my-6 hidden">
+            <div id="answer-box" class="analysis-card p-6 rounded-2xl shadow-lg border border-gray-200">
+                <div class="flex items-center mb-3">
+                    <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center mr-3">
+                        <span class="text-white text-sm font-bold">AI</span>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-800">Analysis Result</h3>
+                </div>
+                <div id="answer-text" class="text-gray-700 prose"></div>
+
+                <div id="feedback-section" class="feedback-section hidden">
+                    <p class="font-semibold text-gray-700 mb-2">Was this helpful?</p>
+                    <div class="feedback-quick-buttons">
+                        <button class="positive" onclick="sendFeedback('positive')">👍 Yes, helpful!</button>
+                        <button class="negative" onclick="sendFeedback('negative')">👎 Not really.</button>
+                    </div>
+                    <textarea id="feedback-input" rows="2" placeholder="Tell me more (e.g., 'The chart was good, but the data was for the wrong year.')"></textarea>
+                    <button id="submit-feedback-button" class="mt-2">Submit Detailed Feedback</button>
+                </div>
+            </div>
+            
+            <div id="chart-box" class="bg-white p-6 rounded-2xl shadow-lg border border-gray-200 mt-4">
+                <h2 id="chart-title" class="text-xl font-bold text-gray-800 mb-4 text-center"></h2>
+                <div class="chart-container">
+                    <canvas id="myChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div id="results-section" class="mt-8 hidden">
+            <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-200">
+                <h2 id="table-title" class="text-2xl font-bold text-gray-800 mb-4">📋 Filtered Results</h2>
+                <div id="results-stats" class="mb-4 text-sm text-gray-600"></div>
+                <div class="table-container">
+                    <table id="results-table" class="min-w-full divide-y divide-gray-200">
+                    </table>
+                </div>
+                <p id="no-results" class="text-center text-gray-500 mt-4 hidden">No matching data found.</p>
+            </div>
+        </div>
+
+        <div id="full-data-section" class="mt-8 hidden">
+            <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-200">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">📄 Complete Dataset</h2>
+                <div id="data-overview" class="mb-4 text-sm text-gray-600"></div>
+                <div class="table-container">
+                    <table id="full-data-table" class="min-w-full divide-y divide-gray-200">
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        console.log("RL-Enhanced Excel Analytics Chatbot initializing...");
+        
+        // --- DOM Element References ---
+        const fileInput = document.getElementById('file-input');
+        const fileNameDisplay = document.getElementById('file-name');
+        const chatSection = document.getElementById('chat-section');
+        const questionInput = document.getElementById('question-input');
+        const submitButton = document.getElementById('submit-button');
+        const buttonText = document.getElementById('button-text');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const resultsSection = document.getElementById('results-section');
+        const fullDataSection = document.getElementById('full-data-section');
+        const resultsTable = document.getElementById('results-table');
+        const fullDataTable = document.getElementById('full-data-table');
+        const noResultsMessage = document.getElementById('no-results');
+        const tableTitle = document.getElementById('table-title');
+        const outputContainer = document.getElementById('output-container');
+        const answerBox = document.getElementById('answer-box');
+        const answerText = document.getElementById('answer-text');
+        const chartBox = document.getElementById('chart-box');
+        const chartTitle = document.getElementById('chart-title');
+        const summarizeButton = document.getElementById('summarize-button');
+        const insightsButton = document.getElementById('insights-button');
+        const generateReportButton = document.getElementById('generate-report-button');
+        const clearButton = document.getElementById('clear-button');
+        const chartCanvas = document.getElementById('myChart');
+        const apiKeyInput = document.getElementById('api-key-input');
+        const saveApiKeyButton = document.getElementById('save-api-key');
+        const apiStatus = document.getElementById('api-status');
+        const aiFeatureWarning = document.getElementById('ai-feature-warning');
+        const apiKeySection = document.getElementById('api-key-section');
+        const suggestionsSection = document.getElementById('suggestions-section');
+        const suggestionPills = document.getElementById('suggestion-pills');
+        const resultsStats = document.getElementById('results-stats');
+        const dataOverview = document.getElementById('data-overview');
+        const feedbackSection = document.getElementById('feedback-section');
+        const feedbackInput = document.getElementById('feedback-input');
+        const submitFeedbackButton = document.getElementById('submit-feedback-button');
+
+
+        // --- Advanced State Variables ---
+        let workbookData = [];
+        let headers = [];
+        let currentViewData = [];
+        let myChart = null;
+        let geminiApiKey = '';
+        let dateColumns = [];
+        let numericColumns = [];
+        let categoricalColumns = [];
+        let dataAnalysis = {};
+        let lastAICommand = null; // Store the last command executed by AI/RL
+        let lastRLActionId = null; // New: Unique ID for the last RL action/suggestion
+        let userFeedback = ''; // Store user's last feedback
+
+        // --- Event Listeners ---
+        fileInput.addEventListener('change', handleFile);
+        submitButton.addEventListener('click', handleQuestion);
+        questionInput.addEventListener('keyup', (event) => {
+            if (event.key === 'Enter') handleQuestion();
+        });
+        summarizeButton.addEventListener('click', handleSummarize);
+        insightsButton.addEventListener('click', handleAutoInsights);
+        generateReportButton.addEventListener('click', handleGenerateReportNarrative);
+        clearButton.addEventListener('click', handleClear);
+        saveApiKeyButton.addEventListener('click', saveApiKey);
+        submitFeedbackButton.addEventListener('click', () => sendFeedback('detailed'));
+
+
+        // --- API Key Management ---
+        function saveApiKey() {
+            const key = apiKeyInput.value.trim();
+            if (!key) {
+                showApiStatus('Please enter an API key', 'error');
+                return;
+            }
+            
+            geminiApiKey = key;
+            apiKeyInput.value = ''; // Clear the input field after saving
+            showApiStatus('API key saved successfully! ✅', 'success');
+            updateApiKeyUI();
+        }
+
+        function showApiStatus(message, type) {
+            apiStatus.textContent = message;
+            apiStatus.className = `mt-2 text-sm ${type === 'error' ? 'text-red-200' : 'text-green-200'}`;
+            apiStatus.classList.remove('hidden');
+            setTimeout(() => {
+                apiStatus.classList.add('hidden');
+            }, 3000);
+        }
+
+        function updateApiKeyUI() {
+            const hasApiKey = geminiApiKey.length > 0;
+            if (hasApiKey) {
+                apiKeySection.classList.add('hidden');
+                aiFeatureWarning.classList.add('hidden');
+            } else {
+                aiFeatureWarning.classList.remove('hidden');
+            }
+        }
+
+        // --- Advanced File Processing ---
+        function handleFile(event) {
+            const file = event.target.files[0];
+            clearOutput();
+            fullDataSection.classList.add('hidden');
+            chatSection.classList.add('hidden');
+            userFeedback = ''; // Clear feedback on new file upload
+
+            if (!file) {
+                fileNameDisplay.textContent = "No file selected.";
+                return;
+            }
+
+            fileNameDisplay.textContent = `📁 Processing: ${file.name}...`;
+            console.log(`Processing file: ${file.name}`);
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+
+                    if (rawData && rawData.length > 1) {
+                        headers = rawData[0].map(String);
+                        workbookData = rawData.slice(1).map(row => {
+                            let rowData = {};
+                            headers.forEach((header, index) => {
+                                const cellValue = row[index];
+                                if (cellValue instanceof Date) {
+                                    rowData[header] = cellValue;
+                                } else if (typeof cellValue === 'string' && isValidDate(cellValue)) {
+                                    rowData[header] = new Date(cellValue);
+                                } else {
+                                    rowData[header] = cellValue;
+                                }
+                            });
+                            return rowData;
+                        });
+                        
+                        currentViewData = workbookData;
+                        analyzeDataStructure();
+                        // RL Integration: Initial state for RL agent to suggest actions
+                        requestRLSuggestions(); 
+                        displayDataOverview();
+                        displayTable(fullDataTable, headers, workbookData);
+                        
+                        fullDataSection.classList.remove('hidden');
+                        chatSection.classList.remove('hidden');
+                        fileNameDisplay.textContent = `✅ Loaded: ${file.name} (${workbookData.length} rows, ${headers.length} columns)`;
+                        showAnswer('🎉 Data loaded successfully! Your advanced analytics chatbot is ready. Try asking complex questions or use the intelligent suggestions below.');
+                        updateApiKeyUI();
+                    } else {
+                        showAnswer('❌ Error: The file appears to be empty or invalid.');
+                    }
+                } catch (error) {
+                    console.error("File processing error:", error);
+                    showAnswer(`❌ Error processing file: ${error.message}`);
+                }
+            };
+
+            reader.onerror = (error) => {
+                showAnswer(`❌ Error reading file: ${error.message}`);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // --- Advanced Data Analysis Functions ---
+        function analyzeDataStructure() {
+            dateColumns = [];
+            numericColumns = [];
+            categoricalColumns = [];
+            
+            headers.forEach(header => {
+                const sampleValues = workbookData.slice(0, 100).map(row => row[header]).filter(val => val !== null && val !== undefined && val !== '');
+                
+                if (sampleValues.length === 0) return;
+                
+                // Check for dates
+                const dateCount = sampleValues.filter(val => val instanceof Date || isValidDate(val)).length;
+                if (dateCount / sampleValues.length > 0.5) {
+                    dateColumns.push(header);
+                    return;
+                }
+                
+                // Check for numeric
+                const numericCount = sampleValues.filter(val => !isNaN(parseFloat(val)) && isFinite(val)).length;
+                if (numericCount / sampleValues.length > 0.7) {
+                    numericColumns.push(header);
+                    return;
+                }
+                
+                // Otherwise categorical
+                categoricalColumns.push(header);
+            });
+
+            console.log('Data structure analysis:', {
+                dateColumns,
+                numericColumns,
+                categoricalColumns
+            });
+        }
+
+        function isValidDate(dateString) {
+            if (!dateString) return false;
+            const date = new Date(dateString);
+            return date instanceof Date && !isNaN(date);
+        }
+
+        // New: Request RL agent to generate suggestions
+        async function requestRLSuggestions() {
+            if (!geminiApiKey || workbookData.length === 0) {
+                displaySuggestions(["Upload your Excel file to get started", "Configure your API key for smart suggestions"]);
+                return;
+            }
+
+            // In a real RL setup, this would send current_state to backend RL agent
+            // For this conceptual frontend, we'll simulate intelligent suggestions or let LLM suggest.
+            const prompt = `
+                Given the available data columns: ${JSON.stringify(headers)}, 
+                numeric columns: ${JSON.stringify(numericColumns)}, 
+                date columns: ${JSON.stringify(dateColumns)}, 
+                and categorical columns: ${JSON.stringify(categoricalColumns)},
+                and considering the goal is to help a user analyze their data,
+                suggest 3-5 very specific and actionable data analysis queries or actions.
+                Focus on common insights like 'top N', 'trends', 'distributions', or 'comparisons'.
+                Format your response as a JSON array of strings, e.g., ["query 1", "query 2"].
+            `;
+            
+            try {
+                const response = await callGeminiApiForJson(prompt);
+                if (Array.isArray(response) && response.every(item => typeof item === 'string')) {
+                    displaySuggestions(response);
+                } else {
+                    console.warn("Gemini API returned unexpected format for suggestions:", response);
+                    displaySuggestions(["Show top 5 products by sales", "Bar chart of category sales", "Data from last year"]);
+                }
+            } catch (error) {
+                console.error("Error fetching RL suggestions (simulated by LLM):", error);
+                displaySuggestions(["Show top 5 products by sales", "Bar chart of category sales", "Data from last year"]);
+            }
+        }
+
+        function displaySuggestions(suggestions) {
+            suggestionPills.innerHTML = '';
+            suggestions.forEach(suggestion => {
+                const pill = document.createElement('span');
+                pill.className = 'suggestion-pill';
+                pill.textContent = suggestion;
+                pill.onclick = () => {
+                    questionInput.value = suggestion;
+                    handleQuestion();
+                };
+                suggestionPills.appendChild(pill);
+            });
+        }
+
+        function displayDataOverview() {
+            const overview = `
+                📊 ${workbookData.length.toLocaleString()} rows • 
+                📋 ${headers.length} columns • 
+                📅 ${dateColumns.length} date fields • 
+                🔢 ${numericColumns.length} numeric fields • 
+                📝 ${categoricalColumns.length} text fields
+            `;
+            dataOverview.innerHTML = overview;
+        }
+
+        // --- Advanced Question Processing ---
+        async function handleQuestion() {
+            const query = questionInput.value.trim();
+            if (!query) return;
+
+            toggleLoading(true, 'ask');
+            clearOutput();
+
+            try {
+                if (workbookData.length === 0) {
+                    showAnswer("Please upload an Excel file first before asking questions.");
+                    return;
+                }
+
+                // In a true RL setup, this query would be sent to the RL backend.
+                // The backend RL agent would then decide the best action (execute directly or call LLM).
+                // For this conceptual frontend, we'll continue with existing logic:
+                // Try advanced pattern matching first, then fallback to AI if available.
+
+                const advancedResult = await tryAdvancedPatterns(query);
+                if (advancedResult) {
+                    // This is a direct execution, so we mark it as a successful action
+                    // and allow feedback.
+                    lastRLActionId = Date.now(); // Simulate a unique action ID
+                    feedbackSection.classList.remove('hidden');
+                    return;
+                }
+
+                if (!geminiApiKey) {
+                    showAnswer("🔑 This query requires AI analysis. Please configure your Gemini API key above for advanced features.");
+                    return;
+                }
+
+                await processWithAI(query);
+                // After AI processes, it's also a completed 'action' from the system's perspective
+                lastRLActionId = Date.now(); // Simulate a unique action ID
+                feedbackSection.classList.remove('hidden');
+
+            } catch (error) {
+                console.error('Error processing question:', error);
+                showAnswer(`❌ Error: ${error.message}`);
+            } finally {
+                toggleLoading(false, 'ask');
+            }
+        }
+
+        // --- Feedback Submission Handler (RL Integration Point) ---
+        function sendFeedback(type) {
+            const detailedFeedback = feedbackInput.value.trim();
+            let reward = 0;
+            let feedbackMessage = "";
+
+            if (type === 'positive') {
+                reward = 1; // High positive reward
+                feedbackMessage = "Great! Your positive feedback helps me learn. Thank you!";
+            } else if (type === 'negative') {
+                reward = -1; // High negative reward
+                feedbackMessage = "Understood. I'll use this feedback to improve. Can you tell me more?";
+            } else if (type === 'detailed') { // Submitted via the button
+                if (!detailedFeedback) {
+                    showAnswer("Please enter some feedback before submitting.", false);
+                    return;
+                }
+                // Moderate reward/penalty based on sentiment of detailed feedback (could use another LLM for sentiment)
+                // For simplicity, let's assume detailed feedback is generally helpful for learning.
+                reward = 0.5; 
+                userFeedback = detailedFeedback; // Store for the next AI prompt
+                feedbackMessage = "Thank you for your detailed feedback! This is very valuable for my learning process.";
+            }
+
+            console.log(`Sending feedback to RL agent (simulated): Action ID ${lastRLActionId}, Reward: ${reward}, Detailed: "${detailedFeedback}"`);
+            // In a real system, you would send this to your RL backend:
+            // fetch('/api/rl_feedback', {
+            //     method: 'POST',
+            //     headers: { 'Content-Type': 'application/json' },
+            //     body: JSON.stringify({ action_id: lastRLActionId, reward: reward, detailed_feedback: detailedFeedback })
+            // });
+
+            showAnswer(feedbackMessage, false);
+            feedbackInput.value = ''; // Clear feedback input
+            feedbackSection.classList.add('hidden'); // Hide feedback section after submission
+            lastRLActionId = null; // Reset action ID after feedback
+            requestRLSuggestions(); // Request new suggestions based on feedback
+        }
+
+
+        async function tryAdvancedPatterns(query) {
+            const lowerQuery = query.toLowerCase();
+            
+            // Top N pattern
+            const topMatch = lowerQuery.match(/top\s+(\d+)\s+(.+?)\s+by\s+(.+)/);
+            if (topMatch) {
+                const [, count, category, metric] = topMatch;
+                return await handleTopNAnalysis(parseInt(count), category.trim(), metric.trim(), 'top');
+            }
+            
+            // Bottom N pattern
+            const bottomMatch = lowerQuery.match(/bottom\s+(\d+)\s+(.+?)\s+by\s+(.+)/);
+            if (bottomMatch) {
+                const [, count, category, metric] = bottomMatch;
+                return await handleTopNAnalysis(parseInt(count), category.trim(), metric.trim(), 'bottom');
+            }
+            
+            // Chart patterns
+            if (lowerQuery.includes('bar chart') || lowerQuery.includes('chart') || lowerQuery.includes('pie chart') || lowerQuery.includes('line chart')) {
+                return await handleChartRequest(query);
+            }
+            
+            // Date range patterns
+            const dateRangeMatch = lowerQuery.match(/(last|past)\s+(\d+)\s+(days?|months?|years?)/);
+            if (dateRangeMatch) {
+                return await handleDateRangeFilter(dateRangeMatch);
+            }
+            
+            // Year filtering
+            const yearMatch = lowerQuery.match(/(?:in|for|during)\s+(\d{4})/);
+            if (yearMatch) {
+                return await handleYearFilter(parseInt(yearMatch[1]));
+            }
+            
+            return false;
+        }
+
+        async function handleTopNAnalysis(count, categoryTerm, metricTerm, order) {
+            // Find matching columns
+            const categoryCol = findBestColumnMatch(categoryTerm, categoricalColumns);
+            const metricCol = findBestColumnMatch(metricTerm, numericColumns);
+            
+            if (!categoryCol) {
+                showAnswer(`❌ Could not find a category column matching "${categoryTerm}". Available categories: ${categoricalColumns.join(', ')}`);
+                return true;
+            }
+            
+            if (!metricCol) {
+                showAnswer(`❌ Could not find a metric column matching "${metricTerm}". Available metrics: ${numericColumns.join(', ')}`);
+                return true;
+            }
+            
+            const analysis = performTopNAnalysis(count, categoryCol, metricCol, order);
+            showAnswer(analysis.text, true);
+            
+            // Auto-generate chart
+            createTopNChart(analysis.data, categoryCol, metricCol, `${order.toUpperCase()} ${count} ${categoryCol} by ${metricCol}`);
+            
+            return true;
+        }
+
+        async function handleChartRequest(query) {
+            const lowerQuery = query.toLowerCase();
+            
+            // Extract chart type
+            let chartType = 'bar';
+            if (lowerQuery.includes('pie')) chartType = 'pie';
+            if (lowerQuery.includes('line')) chartType = 'line';
+            
+            // Try to extract columns from query
+            let xCol = null, yCol = null;
+            
+            // Look for "by" pattern
+            const byMatch = lowerQuery.match(/(.+?)\s+by\s+(.+)/);
+            if (byMatch) {
+                const [, metric, category] = byMatch;
+                yCol = findBestColumnMatch(metric.replace(/chart|bar|pie|line/g, '').trim(), numericColumns);
+                xCol = findBestColumnMatch(category.trim(), categoricalColumns);
+            }
+            
+            // Fallback if not found in "by" pattern or if no categorical/numeric columns
+            if (!xCol && categoricalColumns.length > 0) xCol = categoricalColumns[0];
+            if (!yCol && numericColumns.length > 0) yCol = numericColumns[0];
+            
+            if (!xCol || !yCol) {
+                showAnswer(`❌ Could not determine chart columns. Please specify like "bar chart of sales by product"`);
+                return true;
+            }
+            
+            generateAdvancedChart({
+                type: chartType,
+                title: `${chartType.charAt(0).toUpperCase() + chartType.slice(1)} Chart: ${yCol} by ${xCol}`,
+                labelColumn: xCol,
+                dataColumn: yCol,
+                aggregation: 'sum'
+            }, workbookData);
+            
+            showAnswer(`📊 Generated ${chartType} chart showing ${yCol} by ${xCol}`);
+            return true;
+        }
+
+        async function handleDateRangeFilter(dateMatch) {
+            const [, period, number, unit] = dateMatch;
+            const num = parseInt(number);
+            
+            if (dateColumns.length === 0) {
+                showAnswer(`❌ No date columns found in your data. Available columns: ${headers.join(', ')}`);
+                return true;
+            }
+            
+            const dateCol = dateColumns[0];
+            const cutoffDate = new Date();
+            
+            if (unit.startsWith('day')) {
+                cutoffDate.setDate(cutoffDate.getDate() - num);
+            } else if (unit.startsWith('month')) {
+                cutoffDate.setMonth(cutoffDate.getMonth() - num);
+            } else if (unit.startsWith('year')) {
+                cutoffDate.setFullYear(cutoffDate.getFullYear() - num);
+            }
+            
+            const filteredData = workbookData.filter(row => {
+                const rowDate = new Date(row[dateCol]);
+                return rowDate >= cutoffDate;
+            });
+            
+            currentViewData = filteredData;
+            displayFilteredResults(filteredData, `Data from ${period} ${number} ${unit}`);
+            showAnswer(`📅 Filtered to show data from the ${period} ${number} ${unit}. Found ${filteredData.length} matching records.`);
+            
+            return true;
+        }
+
+        async function handleYearFilter(year) {
+            if (dateColumns.length === 0) {
+                showAnswer(`❌ No date columns found to filter by year.`);
+                return true;
+            }
+            
+            const dateCol = dateColumns[0];
+            const filteredData = workbookData.filter(row => {
+                const rowDate = new Date(row[dateCol]);
+                return rowDate.getFullYear() === year;
+            });
+            
+            currentViewData = filteredData;
+            displayFilteredResults(filteredData, `Data for ${year}`);
+            showAnswer(`📅 Filtered to show data for ${year}. Found ${filteredData.length} matching records.`);
+            
+            return true;
+        }
+
+        function findBestColumnMatch(term, availableColumns) {
+            if (!term || availableColumns.length === 0) return null;
+            
+            term = term.toLowerCase();
+            
+            // Exact match
+            const exact = availableColumns.find(col => col.toLowerCase() === term);
+            if (exact) return exact;
+            
+            // Partial match
+            const partial = availableColumns.find(col => 
+                col.toLowerCase().includes(term) || term.includes(col.toLowerCase())
+            );
+            if (partial) return partial;
+            
+            // Fuzzy match for common terms
+            const fuzzyMatches = {
+                'product': ['product', 'item', 'name', 'title'],
+                'sales': ['sales', 'revenue', 'amount', 'value', 'price'],
+                'quantity': ['quantity', 'qty', 'count', 'number', 'units'],
+                'date': ['date', 'time', 'created', 'updated'],
+                'category': ['category', 'type', 'group', 'class'],
+                'customer': ['customer', 'client', 'user', 'buyer']
+            };
+            
+            for (const [key, synonyms] of Object.entries(fuzzyMatches)) {
+                if (synonyms.some(syn => term.includes(syn))) {
+                    const match = availableColumns.find(col => 
+                        synonyms.some(syn => col.toLowerCase().includes(syn))
+                    );
+                    if (match) return match;
+                }
+            }
+            
+            return null;
+        }
+
+        function performTopNAnalysis(count, categoryCol, metricCol, order) {
+            const aggregated = {};
+            
+            workbookData.forEach(row => {
+                const category = row[categoryCol];
+                const value = parseFloat(row[metricCol]);
+                
+                if (category && !isNaN(value)) {
+                    aggregated[category] = (aggregated[category] || 0) + value;
+                }
+            });
+            
+            const sorted = Object.entries(aggregated)
+                .sort(([,a], [,b]) => order === 'top' ? b - a : a - b)
+                .slice(0, count);
+            
+            let text = `## ${order.toUpperCase()} ${count} ${categoryCol} by ${metricCol}\n\n`;
+            sorted.forEach(([category, value], index) => {
+                text += `${index + 1}. **${category}**: ${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}\n`;
+            });
+            
+            return {
+                text,
+                data: sorted.map(([category, value]) => ({ category, value }))
+            };
+        }
+
+        function createTopNChart(data, categoryCol, metricCol, title) {
+            if (myChart) myChart.destroy();
+            
+            const labels = data.map(item => item.category);
+            const values = data.map(item => item.value);
+            
+            const chartConfig = {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: metricCol,
+                        data: values,
+                        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: title }
+                    },
+                    scales: {
+                        y: { beginAtZero: true },
+                        x: { 
+                            ticks: { 
+                                maxRotation: 45,
+                                callback: function(value, index) {
+                                    const label = this.getLabelForValue(value);
+                                    return label.length > 15 ? label.substring(0, 15) + '...' : label;
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            
+            myChart = new Chart(chartCanvas, chartConfig);
+            chartTitle.textContent = title;
+            chartBox.classList.remove('hidden');
+            outputContainer.classList.remove('hidden');
+        }
+
+        async function processWithAI(query) {
+            const dataSample = workbookData.length > 10 ? workbookData.slice(0, 10) : workbookData;
+            
+            // Construct the prompt, including feedback if available
+            let prompt = `
+                You are an advanced data analyst AI with expertise in Excel data analysis. Analyze the user's query and provide appropriate actions.
+
+                **Dataset Information:**
+                - Columns: [${headers.join(', ')}]
+                - Date columns: [${dateColumns.join(', ')}]
+                - Numeric columns: [${numericColumns.join(', ')}]
+                - Categorical columns: [${categoricalColumns.join(', ')}]
+                - Total rows: ${workbookData.length}
+                - Sample data: ${JSON.stringify(dataSample, null, 2)}
+            `;
+
+            if (userFeedback) {
+                prompt += `
+                    **Previous Interaction Feedback:** The user provided this feedback on the last response: "${userFeedback}". Please consider this feedback and adjust your analysis or response accordingly for the current query.
+                `;
+            }
+
+            prompt += `
+                **User Query:** "${query}"
+
+                **Response Format:** Provide ONLY a JSON object with one of these structures:
+
+                1. **Top/Bottom Analysis:**
+                \`{ "type": "top_bottom", "count": N, "category": "column_name", "metric": "column_name", "order": "top|bottom", "title": "description" }\`
+
+                2. **Chart Generation:**
+                \`{ "type": "chart", "chartType": "bar|line|pie", "x": "column_name", "y": "column_name", "title": "chart title", "aggregation": "sum|average|count" }\`
+
+                3. **Date Filtering:**
+                \`{ "type": "date_filter", "column": "date_column", "startDate": "YYYY-MM-DD", "endDate": "YYYY-MM-DD", "description": "filter description" }\`
+
+                4. **Advanced Filtering:**
+                \`{ "type": "filter", "filters": [{"column": "name", "operator": "==|>|<|contains", "value": "value"}], "description": "filter description" }\`
+
+                5. **Statistical Analysis:**
+                \`{ "type": "stats", "column": "column_name", "operation": "sum|average|min|max|count", "groupBy": "optional_column" }\`
+
+                6. **Text Response:**
+                \`{ "type": "text", "message": "your response here" }\`
+
+                **Important:** Use exact column names from the dataset. Be smart about interpreting user intent.
+            `;
+
+            try {
+                const response = await callGeminiApiForJson(prompt);
+                lastAICommand = response; // Store the AI's generated command
+                userFeedback = ''; // Reset feedback after AI processes it
+                await executeAICommand(response);
+            } catch (error) {
+                showAnswer(`❌ AI Analysis Error: ${error.message}`);
+            }
+        }
+
+        async function executeAICommand(command) {
+            switch (command.type) {
+                case 'top_bottom':
+                    const analysis = performTopNAnalysis(command.count, command.category, command.metric, command.order);
+                    showAnswer(analysis.text, true);
+                    createTopNChart(analysis.data, command.category, command.metric, command.title);
+                    break;
+                    
+                case 'chart':
+                    generateAdvancedChart({
+                        type: command.chartType,
+                        title: command.title,
+                        labelColumn: command.x,
+                        dataColumn: command.y,
+                        aggregation: command.aggregation || 'sum'
+                    }, workbookData);
+                    showAnswer(`📊 Generated ${command.chartType} chart: ${command.title}`);
+                    break;
+                    
+                case 'date_filter':
+                    const dateFiltered = filterByDateRange(command.column, command.startDate, command.endDate);
+                    displayFilteredResults(dateFiltered, command.description);
+                    showAnswer(`📅 ${command.description}: Found ${dateFiltered.length} records`);
+                    break;
+                    
+                case 'filter':
+                    const filtered = applyAdvancedFilters(workbookData, command.filters);
+                    displayFilteredResults(filtered, command.description);
+                    showAnswer(`🔍 ${command.description}: Found ${filtered.length} records`);
+                    break;
+                    
+                case 'stats':
+                    const stats = calculateStatistics(command.column, command.operation, command.groupBy);
+                    showAnswer(stats, true);
+                    break;
+                    
+                case 'text':
+                    showAnswer(command.message, true);
+                    break;
+                    
+                default:
+                    showAnswer("❌ Unknown command type from AI analysis");
+            }
+        }
+
+        // --- Advanced Chart Generation ---
+        function generateAdvancedChart(chartInfo, dataToUse) {
+            clearOutput();
+            const { type, title, labelColumn, dataColumn, aggregation = 'sum' } = chartInfo;
+
+            if (!headers.includes(labelColumn) || !headers.includes(dataColumn)) {
+                showAnswer(`❌ Chart columns '${labelColumn}' or '${dataColumn}' not found`);
+                return;
+            }
+
+            const aggregatedData = {};
+            const labelCounts = {};
+            
+            dataToUse.forEach(row => {
+                const label = row[labelColumn];
+                const value = parseFloat(row[dataColumn]);
+                if (label && !isNaN(value)) {
+                    aggregatedData[label] = (aggregatedData[label] || 0) + value;
+                    labelCounts[label] = (labelCounts[label] || 0) + 1;
+                }
+            });
+
+            if (aggregation === 'average') {
+                for (const label in aggregatedData) {
+                    if(labelCounts[label] > 0) {
+                        aggregatedData[label] = aggregatedData[label] / labelCounts[label];
+                    }
+                }
+            }
+
+            const labels = Object.keys(aggregatedData);
+            const data = Object.values(aggregatedData);
+
+            if (labels.length === 0) {
+                showAnswer(`❌ No data available for chart generation`);
+                return;
+            }
+
+            if (myChart) myChart.destroy();
+
+            // Enhanced color schemes
+            const colors = {
+                bar: {
+                    backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                    borderColor: 'rgba(59, 130, 246, 1)'
+                },
+                line: {
+                    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                    borderColor: 'rgba(16, 185, 129, 1)'
+                },
+                pie: labels.map((_, i) => `hsl(${i * 360 / labels.length}, 70%, 60%)`)
+            };
+
+            const chartConfig = {
+                type: type,
+                data: {
+                    labels: labels.map(label => label.length > 20 ? label.substring(0, 20) + '...' : label),
+                    datasets: [{
+                        label: `${aggregation.charAt(0).toUpperCase() + aggregation.slice(1)} of ${dataColumn}`,
+                        data: data,
+                        backgroundColor: type === 'pie' ? colors.pie : colors[type].backgroundColor,
+                        borderColor: type === 'pie' ? '#fff' : colors[type].borderColor,
+                        borderWidth: type === 'pie' ? 2 : 1,
+                        fill: type === 'line' ? true : false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { 
+                            position: type === 'pie' ? 'bottom' : 'top',
+                            display: type === 'pie' ? true : false
+                        },
+                        title: { 
+                            display: true, 
+                            text: title,
+                            font: { size: 16, weight: 'bold' }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed.y || context.parsed;
+                                    return `${context.dataset.label}: ${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: type === 'pie' ? {} : {
+                        y: { 
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString();
+                                }
+                            }
+                        },
+                        x: {
+                            ticks: { 
+                                maxRotation: 45,
+                                font: { size: 11 }
+                            }
+                        }
+                    }
+                }
+            };
+
+            myChart = new Chart(chartCanvas, chartConfig);
+            chartTitle.textContent = title;
+            chartBox.classList.remove('hidden');
+            outputContainer.classList.remove('hidden');
+        }
+
+        // --- Advanced Filtering Functions ---
+        function filterByDateRange(dateColumn, startDate, endDate) {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            
+            return workbookData.filter(row => {
+                const rowDate = new Date(row[dateColumn]);
+                return rowDate >= start && rowDate <= end;
+            });
+        }
+
+        function applyAdvancedFilters(data, filters) {
+            return data.filter(row => {
+                return filters.every(filter => {
+                    const { column, operator, value } = filter;
+                    if (!row.hasOwnProperty(column)) return false;
+                    
+                    const rowValue = row[column];
+                    const isNumeric = !isNaN(parseFloat(rowValue)) && isFinite(rowValue);
+                    
+                    switch (operator) {
+                        case '==':
+                        case '===':
+                            return String(rowValue).toLowerCase() === String(value).toLowerCase();
+                        case '!=':
+                        case '!==':
+                            return String(rowValue).toLowerCase() !== String(value).toLowerCase();
+                        case '>':
+                            return isNumeric && parseFloat(rowValue) > parseFloat(value);
+                        case '<':
+                            return isNumeric && parseFloat(rowValue) < parseFloat(value);
+                        case '>=':
+                            return isNumeric && parseFloat(rowValue) >= parseFloat(value);
+                        case '<=':
+                            return isNumeric && parseFloat(rowValue) <= parseFloat(value);
+                        case 'contains':
+                            return String(rowValue).toLowerCase().includes(String(value).toLowerCase());
+                        case 'starts_with':
+                            return String(rowValue).toLowerCase().startsWith(String(value).toLowerCase());
+                        case 'ends_with':
+                            return String(rowValue).toLowerCase().endsWith(String(value).toLowerCase());
+                        default:
+                            return false;
+                    }
+                });
+            });
+        }
+
+        function calculateStatistics(column, operation, groupBy = null) {
+            if (!headers.includes(column)) {
+                return `❌ Column '${column}' not found`;
+            }
+            
+            if (groupBy && !headers.includes(groupBy)) {
+                return `❌ Group by column '${groupBy}' not found`;
+            }
+            
+            const values = workbookData.map(row => parseFloat(row[column])).filter(n => !isNaN(n));
+            
+            if (values.length === 0) {
+                return `❌ No numeric data found in column '${column}'`;
+            }
+            
+            if (!groupBy) {
+                // Simple statistics
+                let result;
+                switch (operation) {
+                    case 'sum':
+                        result = values.reduce((a, b) => a + b, 0);
+                        break;
+                    case 'average':
+                        result = values.reduce((a, b) => a + b, 0) / values.length;
+                        break;
+                    case 'min':
+                        result = Math.min(...values);
+                        break;
+                    case 'max':
+                        result = Math.max(...values);
+                        break;
+                    case 'count':
+                        result = values.length;
+                        break;
+                    default:
+                        return `❌ Unknown operation: ${operation}`;
+                }
+                
+                return `## ${operation.toUpperCase()} of ${column}\n\n**Result:** ${result.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+            } else {
+                // Grouped statistics
+                const groups = {};
+                workbookData.forEach(row => {
+                    const groupValue = row[groupBy];
+                    const numValue = parseFloat(row[column]);
+                    
+                    if (groupValue && !isNaN(numValue)) {
+                        if (!groups[groupValue]) groups[groupValue] = [];
+                        groups[groupValue].push(numValue);
+                    }
+                });
+                
+                let text = `## ${operation.toUpperCase()} of ${column} by ${groupBy}\n\n`;
+                Object.entries(groups).forEach(([group, vals]) => {
+                    let result;
+                    switch (operation) {
+                        case 'sum':
+                            result = vals.reduce((a, b) => a + b, 0);
+                            break;
+                        case 'average':
+                           result = vals.reduce((a, b) => a + b, 0) / vals.length;
+                            break;
+                        case 'min':
+                            result = Math.min(...vals);
+                            break;
+                        case 'max':
+                            result = Math.max(...vals);
+                            break;
+                        case 'count':
+                            result = vals.length;
+                            break;
+                    }
+                    text += `- **${group}**: ${result.toLocaleString(undefined, { maximumFractionDigits: 2 })}\n`;
+                });
+                
+                return text;
+            }
+        }
+
+        // --- Display Functions ---
+        function displayFilteredResults(data, description) {
+            currentViewData = data;
+            tableTitle.textContent = `📋 ${description}`;
+            resultsStats.textContent = `Showing ${data.length.toLocaleString()} of ${workbookData.length.toLocaleString()} total records`;
+            
+            displayTable(resultsTable, headers, data);
+            resultsSection.classList.remove('hidden');
+            noResultsMessage.classList.toggle('hidden', data.length > 0);
+        }
+
+        // --- Enhanced AI Features ---
+        async function handleSummarize() {
+            if (workbookData.length === 0) {
+                showAnswer("❌ Please upload data first");
+                return;
+            }
+            
+            if (!geminiApiKey) {
+                showAnswer("🔑 AI summarization requires a Gemini API key");
+                return;
+            }
+            
+            toggleLoading(true, 'summarize');
+            clearOutput();
+            feedbackSection.classList.add('hidden'); // Hide feedback on new AI action
+            
+            try {
+                const summary = generateDataSummary();
+                const prompt = `
+                    Analyze this dataset summary and provide key insights:
+                    
+                    ${summary}
+                    
+                    Sample data: ${JSON.stringify(workbookData.slice(0, 5), null, 2)}
+                    
+                    Provide a comprehensive analysis with:
+                    1. Key findings and patterns
+                    2. Notable statistics
+                    3. Potential areas for deeper analysis
+                    4. Data quality observations
+                    
+                    Format as markdown with clear sections.
+                `;
+                
+                const analysis = await callGeminiApiForText(prompt);
+                showAnswer(analysis, true);
+                feedbackSection.classList.remove('hidden'); // Show feedback after AI response
+                lastRLActionId = Date.now(); // Record action for feedback
+                
+            } catch (error) {
+                showAnswer(`❌ Summarization error: ${error.message}`);
+            } finally {
+                toggleLoading(false, 'summarize');
+            }
+        }
+
+        async function handleAutoInsights() {
+            if (workbookData.length === 0) {
+                showAnswer("❌ Please upload data first");
+                return;
+            }
+            
+            if (!geminiApiKey) {
+                showAnswer("🔑 Auto insights require a Gemini API key");
+                return;
+            }
+            
+            toggleLoading(true, 'insights');
+            clearOutput();
+            feedbackSection.classList.add('hidden'); // Hide feedback on new AI action
+            
+            try {
+                const insights = await generateAutoInsights();
+                showAnswer(insights, true);
+                feedbackSection.classList.remove('hidden'); // Show feedback after AI response
+                lastRLActionId = Date.now(); // Record action for feedback
+                
+            } catch (error) {
+                showAnswer(`❌ Insights error: ${error.message}`);
+            } finally {
+                toggleLoading(false, 'insights');
+            }
+        }
+
+        function generateDataSummary() {
+            let summary = `Dataset Overview:\n`;
+            summary += `- Total Records: ${workbookData.length.toLocaleString()}\n`;
+            summary += `- Columns: ${headers.length}\n`;
+            summary += `- Date Fields: ${dateColumns.length} (${dateColumns.join(', ')})\n`;
+            summary += `- Numeric Fields: ${numericColumns.length} (${numericColumns.join(', ')})\n`;
+            summary += `- Text Fields: ${categoricalColumns.length} (${categoricalColumns.join(', ')})\n\n`;
+            
+            // Quick stats for numeric columns
+            numericColumns.slice(0, 3).forEach(col => {
+                const values = workbookData.map(row => parseFloat(row[col])).filter(n => !isNaN(n));
+                if (values.length > 0) {
+                    const sum = values.reduce((a, b) => a + b, 0);
+                    const avg = sum / values.length;
+                    const min = Math.min(...values);
+                    const max = Math.max(...values);
+                    
+                    summary += `${col} Statistics:\n`;
+                    summary += `  - Sum: ${sum.toLocaleString()}\n`;
+                    summary += `  - Average: ${avg.toFixed(2)}\n`;
+                    summary += `  - Range: ${min} - ${max}\n\n`;
+                }
+            });
+            
+            return summary;
+        }
+
+        async function generateAutoInsights() {
+            const prompt = `
+                As a data scientist, analyze this dataset and provide automatic insights:
+                
+                Dataset: ${generateDataSummary()}
+                Sample records: ${JSON.stringify(workbookData.slice(0, 10), null, 2)}
+                
+                Generate insights in these categories:
+                1. 🔍 **Data Distribution**: Key patterns in the data
+                2. 📊 **Top Performers**: Highest/lowest values and outliers
+                3. 📈 **Trends**: Time-based patterns if date columns exist
+                4. ⚠️ **Data Quality**: Missing values, inconsistencies
+                5. 💡 **Recommendations**: Suggested analyses or actions
+                
+                Make insights specific to this dataset with actual values and percentages.
+                Format as markdown with emojis and clear sections.
+            `;
+            
+            return await callGeminiApiForText(prompt);
+        }
+
+        async function handleGenerateReportNarrative() {
+            if (workbookData.length === 0) {
+                showAnswer("❌ Please upload data first");
+                return;
+            }
+            
+            if (!geminiApiKey) {
+                showAnswer("🔑 Report generation requires a Gemini API key");
+                return;
+            }
+            
+            toggleLoading(true, 'report');
+            clearOutput();
+            feedbackSection.classList.add('hidden'); // Hide feedback on new AI action
+            
+            try {
+                const prompt = `
+                    Create a professional business report based on this dataset:
+                    
+                    ${generateDataSummary()}
+                    
+                    Sample data: ${JSON.stringify(workbookData.slice(0, 15), null, 2)}
+                    
+                    Write a comprehensive business report with:
+                    
+                    # Executive Summary
+                    Brief overview of key findings
+                    
+                    # Data Overview  
+                    Dataset characteristics and scope
+                    
+                    # Key Findings
+                    Most important insights and trends
+                    
+                    # Detailed Analysis
+                    Deeper dive into significant patterns
+                    
+                    # Recommendations
+                    Actionable insights for business decisions
+                    
+                    # Appendix
+                    Technical details and methodology
+                    
+                    Use professional business language with specific numbers and percentages.
+                `;
+                
+                const report = await callGeminiApiForText(prompt);
+                showAnswer(report, true);
+                feedbackSection.classList.remove('hidden'); // Show feedback after AI response
+                lastRLActionId = Date.now(); // Record action for feedback
+                
+            } catch (error) {
+                showAnswer(`❌ Report generation error: ${error.message}`);
+            } finally {
+                toggleLoading(false, 'report');
+            }
+        }
+
+        // --- Utility Functions ---
+        function clearOutput() {
+            resultsSection.classList.add('hidden');
+            outputContainer.classList.add('hidden');
+            answerBox.classList.add('hidden');
+            chartBox.classList.add('hidden');
+            feedbackSection.classList.add('hidden'); // Hide feedback section
+            feedbackInput.value = ''; // Clear feedback input
+            if (myChart) {
+                myChart.destroy();
+                myChart = null;
+            }
+        }
+
+        function handleClear() {
+            questionInput.value = '';
+            clearOutput();
+            workbookData = [];
+            headers = [];
+            currentViewData = [];
+            dateColumns = [];
+            numericColumns = [];
+            categoricalColumns = [];
+            fileNameDisplay.textContent = '';
+            fileInput.value = '';
+            fullDataSection.classList.add('hidden');
+            chatSection.classList.add('hidden');
+            apiKeySection.classList.remove('hidden');
+            suggestionPills.innerHTML = '';
+            geminiApiKey = '';
+            lastAICommand = null; // Clear last AI command
+            lastRLActionId = null; // Clear last RL action ID
+            userFeedback = ''; // Clear user feedback
+            initializeApp(); // Re-initialize to show default state/suggestions
+            showAnswer('🔄 Chatbot reset. Please configure your API key and upload a new file.');
+        }
+
+        function showAnswer(text, isMarkdown = false) {
+            if (isMarkdown) {
+                // Enhanced markdown parsing
+                let html = text
+                    .replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold mt-6 mb-3">$1</h1>')
+                    .replace(/^## (.*$)/gm, '<h2 class="text-xl font-semibold mt-5 mb-2">$1</h2>')
+                    .replace(/^### (.*$)/gm, '<h3 class="text-lg font-medium mt-4 mb-2">$1</h3>')
+                    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+                    .replace(/^- (.*)$/gm, '<li class="ml-4">$1</li>')
+                    .replace(/^(\d+\.) (.*)$/gm, '<li class="ml-4">$2</li>')
+                    .replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-1 rounded text-sm">$1</code>');
+                
+                // Handle lists
+                if (html.includes('<li>')) {
+                    html = html.replace(/(<li>.*?<\/li>)/gs, '<ul class="list-disc mb-3">$1</ul>');
+                    html = html.replace(/<\/ul>\s*<ul[^>]*>/g, '');
+                }
+                
+                // Convert newlines to paragraphs
+                html = html.split('\n\n').map(paragraph => {
+                    if (paragraph.trim() && !paragraph.includes('<h') && !paragraph.includes('<ul') && !paragraph.includes('<li>')) {
+                        return `<p class="mb-3">${paragraph.trim()}</p>`;
+                    }
+                    return paragraph;
+                }).join('\n');
+                
+                answerText.innerHTML = html;
+            } else {
+                answerText.textContent = text;
+            }
+            
+            answerBox.classList.remove('hidden');
+            outputContainer.classList.remove('hidden');
+        }
+
+        function displayTable(tableElement, tableHeaders, dataRows) {
+            tableElement.innerHTML = '';
+            const thead = tableElement.createTHead();
+            const headerRow = thead.insertRow();
+            
+            tableHeaders.forEach(headerText => {
+                const th = document.createElement('th');
+                th.textContent = headerText;
+                th.className = 'bg-gray-50 font-semibold text-gray-900';
+                headerRow.appendChild(th);
+            });
+            
+            const tbody = tableElement.createTBody();
+            if (dataRows.length === 0) {
+                const noDataRow = tbody.insertRow();
+                const cell = noDataRow.insertCell();
+                cell.colSpan = tableHeaders.length;
+                cell.textContent = "No data to display";
+                cell.className = "text-center text-gray-500 py-8";
+            } else {
+                dataRows.slice(0, 1000).forEach((rowData, index) => { // Limit to 1000 rows for performance
+                    const row = tbody.insertRow();
+                    row.className = index % 2 === 0 ? 'bg-gray-50' : 'bg-white';
+                    
+                    tableHeaders.forEach(header => {
+                        const cell = row.insertCell();
+                        const value = rowData[header];
+                        
+                        if (value instanceof Date) {
+                            cell.textContent = value.toLocaleDateString();
+                        } else if (typeof value === 'number') {
+                            cell.textContent = value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+                        } else {
+                            cell.textContent = value ?? '';
+                        }
+                        
+                        cell.className = 'text-gray-700';
+                    });
+                });
+                
+                if (dataRows.length > 1000) {
+                    const moreRow = tbody.insertRow();
+                    const cell = moreRow.insertCell();
+                    cell.colSpan = tableHeaders.length;
+                    cell.textContent = `... and ${(dataRows.length - 1000).toLocaleString()} more rows`;
+                    cell.className = "text-center text-gray-500 py-2 italic";
+                }
+            }
+        }
+
+        function toggleLoading(isLoading, buttonType) {
+            const buttons = {
+                ask: { el: submitButton, text: 'Analyze' },
+                summarize: { el: summarizeButton, text: '✨ Smart Summary' },
+                insights: { el: insightsButton, text: '🔍 Auto Insights' },
+                report: { el: generateReportButton, text: '📊 Generate Report' }
+            };
+
+            const target = buttons[buttonType];
+            if (!target) return;
+
+            target.el.disabled = isLoading;
+            if (buttonType === 'ask') {
+                buttonText.classList.toggle('hidden', isLoading);
+                loadingSpinner.classList.toggle('hidden', !isLoading);
+            } else {
+                target.el.innerHTML = isLoading ? 
+                    '<div class="spinner mx-auto" style="width: 20px; height: 20px; border-width: 2px;"></div>' : 
+                    target.text;
+            }
+        }
+
+        
+        async function callApi(prompt, responseMimeType = "text/plain") {
+            if (!geminiApiKey || geminiApiKey.trim() === "") {
+                throw new Error("API Key is missing. Please configure your Gemini API key above.");
+            }
+            
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
+            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+            if (responseMimeType === "application/json") {
+                payload.generationConfig = { responseMimeType };
+            }
+
+            const response = await fetch(apiUrl, { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify(payload) 
+            });
+
+            if (!response.ok) {
+                const errorBody = await response.json().catch(() => ({ error: { message: response.statusText } }));
+                if (response.status === 400 && errorBody?.error?.message?.includes('API_KEY_INVALID')) {
+                    throw new Error('Invalid API key. Please check your Gemini API key configuration.');
+                }
+                throw new Error(errorBody?.error?.message || `API call failed with status: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (result.promptFeedback?.blockReason) {
+                throw new Error(`Request was blocked by the API. Reason: ${result.promptFeedback.blockReason}`);
+            }
+
+            const responseText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (responseText) {
+                return responseText;
+            }
+
+            throw new Error("Received an invalid or empty response from the API.");
+        }
+
+        async function callGeminiApiForJson(prompt) {
+            const responseText = await callApi(prompt, "application/json");
+            try {
+                return JSON.parse(responseText);
+            } catch (e) {
+                console.error("Failed to parse JSON from API:", responseText);
+                throw new Error("The analysis service returned an unexpected format. Please rephrase your question.");
+            }
+        }
+
+        async function callGeminiApiForText(prompt) {
+            return await callApi(prompt, "text/plain");
+        }
+
+        
+        function initializeApp() {
+            updateApiKeyUI();
+            console.log("🚀 Excel Analytics Chatbot ready!");
+            
+            // Add some example suggestions on load
+            if (suggestionPills.children.length === 0) {
+                const defaultSuggestions = [
+                    "Upload your Excel file to get started",
+                    "Try queries like 'top 10 products by sales'",
+                    "Generate charts with 'bar chart of revenue by month'",
+                    "Filter data with 'show data from last 30 days'"
+                ];
+                
+                defaultSuggestions.forEach(suggestion => {
+                    const pill = document.createElement('span');
+                    pill.className = 'suggestion-pill opacity-50';
+                    pill.textContent = suggestion;
+                    pill.style.cursor = 'default';
+                    suggestionPills.appendChild(pill);
+                });
+            }
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', initializeApp);
+        
+        // Also initialize immediately in case DOMContentLoaded already fired
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeApp);
+        } else {
+            initializeApp();
+        }
+    </script>
+
+</body>
+</html>
