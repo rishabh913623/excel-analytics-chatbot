@@ -32,9 +32,9 @@ An intelligent, voice-enabled chatbot that transforms Excel data analysis throug
 
 ### Setup
 
-#### Option 1: Environment File (Recommended)
+#### Option 1: Quick Setup (Recommended)
 1. **Clone or Download** the project files
-2. **Copy** `.env.example` to `.env`: `cp .env.example .env`
+2. **Run setup script**: `./setup.sh` (on macOS/Linux) or manually copy `.env.example` to `.env`
 3. **Edit** `.env` file and replace `your_api_key_here` with your actual Gemini API key
 4. **Open** `Excel_based_chatbot` or `voice.html` in your web browser
 5. **Upload Data**: Drag and drop your Excel file or click to browse
@@ -75,6 +75,7 @@ Excelbased Chatbot/
 ├── Excel_based_chatbot    # Main application file
 ├── voice.html            # Voice-enabled version
 ├── config.js             # Configuration loader
+├── setup.sh              # Quick setup script
 ├── .env.example          # Environment template
 ├── .env                  # Your API keys (create from .env.example)
 ├── .gitignore           # Git ignore rules
