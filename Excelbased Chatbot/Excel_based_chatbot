@@ -8,6 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+    <script src="config.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
@@ -356,7 +357,20 @@
 
     <script>
         console.log("RL-Enhanced Excel Analytics Chatbot initializing...");
-       
+
+        // --- Initialize Configuration ---
+        async function initializeApp() {
+            await appConfig.loadEnv();
+
+            if (appConfig.hasApiKey()) {
+                geminiApiKey = appConfig.getApiKey();
+                console.log("API key loaded from environment");
+                updateApiKeyUI();
+            } else {
+                console.log("No API key found in environment. Manual input required.");
+            }
+        }
+
         // --- DOM Element References ---
         const fileInput = document.getElementById('file-input');
         const fileNameDisplay = document.getElementById('file-name');
@@ -448,8 +462,9 @@
                 showApiStatus('Please enter an API key', 'error');
                 return;
             }
-           
+
             geminiApiKey = key;
+            appConfig.setApiKey(key);
             apiKeyInput.value = '';
             showApiStatus('API key saved successfully! ✅', 'success');
             updateApiKeyUI();

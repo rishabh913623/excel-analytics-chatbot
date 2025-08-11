@@ -31,6 +31,15 @@ An intelligent, voice-enabled chatbot that transforms Excel data analysis throug
 - Google Gemini API key (free at [Google AI Studio](https://makersuite.google.com/app/apikey))
 
 ### Setup
+
+#### Option 1: Environment File (Recommended)
+1. **Clone or Download** the project files
+2. **Copy** `.env.example` to `.env`: `cp .env.example .env`
+3. **Edit** `.env` file and replace `your_api_key_here` with your actual Gemini API key
+4. **Open** `Excel_based_chatbot` or `voice.html` in your web browser
+5. **Upload Data**: Drag and drop your Excel file or click to browse
+
+#### Option 2: Manual Configuration
 1. **Clone or Download** the project files
 2. **Open** `Excel_based_chatbot` or `voice.html` in your web browser
 3. **Configure API Key**: Enter your Gemini API key in the configuration section
@@ -65,8 +74,36 @@ An intelligent, voice-enabled chatbot that transforms Excel data analysis throug
 Excelbased Chatbot/
 ├── Excel_based_chatbot    # Main application file
 ├── voice.html            # Voice-enabled version
+├── config.js             # Configuration loader
+├── .env.example          # Environment template
+├── .env                  # Your API keys (create from .env.example)
+├── .gitignore           # Git ignore rules
 └── README.md            # This documentation
 ```
+
+## ⚙️ Environment Configuration
+
+### Setting up API Keys
+The application supports automatic API key loading through environment files:
+
+1. **Copy the template**: `cp .env.example .env`
+2. **Edit the .env file**:
+   ```bash
+   # Google Gemini API Configuration
+   GEMINI_API_KEY=your_actual_api_key_here
+   ```
+3. **Restart the application** - the API key will be loaded automatically
+
+### Environment Variables
+- `GEMINI_API_KEY`: Your Google Gemini API key (required for AI features)
+- `VOICE_ENABLED`: Enable/disable voice features (optional)
+- `DEFAULT_CHART_TYPE`: Default chart type for visualizations (optional)
+- `MAX_ROWS_DISPLAY`: Maximum rows to display in tables (optional)
+
+### Security Notes
+- The `.env` file is automatically ignored by Git (never committed)
+- API keys are processed client-side only
+- No server-side storage or transmission of keys
 
 ## 🔧 Technical Details
 
