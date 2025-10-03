@@ -1,0 +1,9 @@
+[build]
+  publish = "."
+  command = "sed -i 's/{{GEMINI_API_KEY}}/${GEMINI_API_KEY:-}/g' BOT.HTML"
+
+[build.environment]
+  NODE_VERSION = "18"
+
+# Environment variables can be set in Netlify dashboard
+# GEMINI_API_KEY: Your Google Gemini API key for AI features

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RL-Enhanced Excel Analytics Chatbot</title>
+    <script>window.GEMINI_API_KEY = "{{GEMINI_API_KEY}}";</script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1535,9 +1536,16 @@
 
         
         function initializeApp() {
+            // Check for environment variable API key
+            if (window.GEMINI_API_KEY && window.GEMINI_API_KEY !== "{{GEMINI_API_KEY}}") {
+                geminiApiKey = window.GEMINI_API_KEY;
+                apiKeySection.classList.add('hidden');
+                aiFeatureWarning.classList.add('hidden');
+            }
+
             updateApiKeyUI();
             console.log("🚀 Excel Analytics Chatbot ready!");
-            
+
             // Add some example suggestions on load
             if (suggestionPills.children.length === 0) {
                 const defaultSuggestions = [
@@ -1546,7 +1554,7 @@
                     "Generate charts with 'bar chart of revenue by month'",
                     "Filter data with 'show data from last 30 days'"
                 ];
-                
+
                 defaultSuggestions.forEach(suggestion => {
                     const pill = document.createElement('span');
                     pill.className = 'suggestion-pill opacity-50';
